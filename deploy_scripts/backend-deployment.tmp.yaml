@@ -1,0 +1,31 @@
+apiVersion: apps/v1 #  for k8s versions before 1.9.0 use apps/v1beta2  and before 1.8.0 use extensions/v1beta1
+kind: Deployment
+metadata:
+  name: bda-backend
+spec:
+  selector:
+    matchLabels:
+      app: bda-backend
+  replicas: 1
+  revisionHistoryLimit: 1
+  template:
+    metadata:
+      labels:
+        app: bda-backend
+    spec:
+      containers:
+      - name: bda-backend
+        image: siddharths2710/bda_backend:latest
+        resources:
+          limits:
+            memory: "900Mi"
+            cpu: "300m"
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 5000
+        env:
+        - name: MONGO_URI
+          value: "mongodb+srv://dev:kvFI6xB79VLKWtmG@cluster0.nlaa2al.mongodb.net/?retryWrites=true&w=majority"
+        - name: FLASK_PORT
+          value: "5000"
+      restartPolicy: Always
