@@ -8,12 +8,13 @@ from requests.auth import HTTPBasicAuth
 # MongoDB connection
 MONGO_URI = os.environ.get("MONGO_URI")
 CVE_URI = os.environ.get("CVE_URI")
+START_AT = os.environ.get("START_AT")
 
 client = pymongo.MongoClient(MONGO_URI)
 db = client["InfoSec-CVE-RealTime"]
 cve_collection = db["cve"]
 
-START_DATE = datetime(2023, 1, 1)
+START_DATE = datetime.strptime(START_AT, '%Y-%m-%dT%H:%M:%S.%f')
 END_TIME = datetime.now()
 
 iter_date = START_DATE
