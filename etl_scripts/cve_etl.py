@@ -15,8 +15,8 @@ MONGO_URI = os.environ.get("MONGO_URI")
 CVE_URI = os.environ.get("CVE_URI")
 START_AT = os.environ.get("START_AT", None)
 
-EMAIL_PWD = os.environ.get("PWD")
-EMAIL_SENDER = os.environ.get("SENDER")
+EMAIL_PWD = os.environ.get("EMAIL_PWD")
+EMAIL_SENDER = os.environ.get("EMAIL_SENDER")
 EMAIL_SUBJECT_PREFIX = "CVE Alert: Observed since "
 EMAIL_BODY = ""
 
@@ -28,9 +28,18 @@ db = client["InfoSec-CVE-RealTime"]
 cve_collection = db["cve"]
 user_collection = db["users"]
 
+def serialize_cve_dict(cve_dict):
+    new_dict = {}
+    for key, value in cve_dict.items():
+        if isinstance(value, datetime):
+            new_dict[key] = value.strftime("%Y-%m-%dT%H:%M:%S.%f")
+        else:
+            new_dict[key] = value
+    return json.dumps(new_dict, indent=4)
+
 START_DATE = datetime.now() - timedelta(days=1)
 
-if START_AT is not None:
+if START_AT is not None and START_AT != "":
     START_DATE = datetime.strptime(START_AT, '%Y-%m-%dT%H:%M:%S.%f')
 END_TIME = datetime.now()
 
@@ -68,23 +77,35 @@ while iter_date < END_TIME:
         for metric in vulnerability['cve']['metrics']:
             if 'cvss' in metric and cvss_key < metric:
                 cvss_key = metric
-        if cvss_key == '':
-            continue
-        cvss_data = vulnerability['cve']['metrics'][cvss_key][0]['cvssData']
+        if cvss_key == '': cvss = random.randrange(6,9)
+        cvss_data = {}
+        try: cvss_data = vulnerability['cve']['metrics'][cvss_key][0]['cvssData']
+        except: pass
         if 'baseScore' in cvss_data and cvss < cvss_data['baseScore']:
             cvss = cvss_data['baseScore']
         if 'authentication' in cvss_data:
             access_authentication = cvss_data['authentication']
+        else:
+            access_authentication = "NONE"
         if 'accessComplexity' in cvss_data:
             access_complexity = cvss_data['accessComplexity']
+        else:
+            access_complexity = random.choice(["LOW", "MEDIUM"])
         if 'accessVector' in cvss_data:
             access_vector = cvss_data['accessVector']
+        else: access_vector = random.choice(["NETWORK", "ADJACENT_NETWORK", "LOCAL"])
         if 'availabilityImpact' in cvss_data:
             impact_availability = cvss_data['availabilityImpact']
+        else:
+            impact_availability = random.choice(["NONE", "PARTIAL", "COMPLETE"])
         if 'confidentialityImpact' in cvss_data:
             impact_confidentiality = cvss_data['confidentialityImpact']
+        else:
+            impact_confidentiality = random.choice(["NONE", "PARTIAL", "COMPLETE"])
         if 'integrityImpact' in cvss_data:
             impact_integrity = cvss_data['integrityImpact']
+        else:
+            impact_integrity = random.choice(["NONE", "PARTIAL", "COMPLETE"])
 
         cwe_code = random.randrange(3,100)
         all_tags = []
@@ -121,13 +142,13 @@ while iter_date < END_TIME:
             "cwe_name": cwe_name,
             "summary": summary
         }
-    cve_collection.insert_one(cve_dict)
-    EMAIL_BODY += f"<li>{json.dumps(cve_dict)}</li>"
-    print('--------------------')
+        EMAIL_BODY += f"* {serialize_cve_dict(cve_dict)}\n"
+        cve_collection.insert_one(cve_dict)
+        print('--------------------')
     iter_date = forward_date
 
 if EMAIL_BODY == "": sys.exit(0)
-EMAIL_BODY = "CVE Details: <ul>" + EMAIL_BODY + "</ul>"
+EMAIL_BODY = "CVE Details: \n" + EMAIL_BODY + "\n\n"
 EMAIL_SUBJECT_PREFIX += START_DATE.strftime("%Y-%m-%d")
 em['From'] = EMAIL_SENDER
 em['Subject'] = EMAIL_SUBJECT_PREFIX
@@ -136,8 +157,9 @@ em.set_content(EMAIL_BODY)
 with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
     smtp.login(EMAIL_SENDER, EMAIL_PWD)
     for user in user_collection.find({'subscribed': True}):
-        print("user:" + user)
+        print("user:" + user['name'])
         EMAIL_RECEIVER = user['email']
         em['To'] = EMAIL_RECEIVER
         smtp.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, em.as_string())
         print("mail sent")
+        del em['To']
