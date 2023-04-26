@@ -136,6 +136,8 @@ em.set_content(EMAIL_BODY)
 with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
     smtp.login(EMAIL_SENDER, EMAIL_PWD)
     for user in user_collection.find({'subscribed': True}):
+        print("user:" + user)
         EMAIL_RECEIVER = user['email']
         em['To'] = EMAIL_RECEIVER
         smtp.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, em.as_string())
+        print("mail sent")
