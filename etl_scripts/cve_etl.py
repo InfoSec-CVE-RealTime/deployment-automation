@@ -1,7 +1,12 @@
 import os
+import sys
+import ssl
+import smtplib
+import json
 import random
 import pymongo
 import requests
+from email.message import EmailMessage
 from datetime import datetime, timedelta
 from requests.auth import HTTPBasicAuth
 
@@ -10,9 +15,18 @@ MONGO_URI = os.environ.get("MONGO_URI")
 CVE_URI = os.environ.get("CVE_URI")
 START_AT = os.environ.get("START_AT", None)
 
+EMAIL_PWD = os.environ.get("PWD")
+EMAIL_SENDER = os.environ.get("SENDER")
+EMAIL_SUBJECT_PREFIX = "CVE Alert: Observed since "
+EMAIL_BODY = ""
+
+em = EmailMessage()
+ssl_context = ssl.create_default_context()
+
 client = pymongo.MongoClient(MONGO_URI)
 db = client["InfoSec-CVE-RealTime"]
 cve_collection = db["cve"]
+user_collection = db["users"]
 
 START_DATE = datetime.now() - timedelta(days=1)
 
@@ -108,5 +122,20 @@ while iter_date < END_TIME:
             "summary": summary
         }
     cve_collection.insert_one(cve_dict)
+    EMAIL_BODY += f"<li>{json.dumps(cve_dict)}</li>"
     print('--------------------')
     iter_date = forward_date
+
+if EMAIL_BODY == "": sys.exit(0)
+EMAIL_BODY = "CVE Details: <ul>" + EMAIL_BODY + "</ul>"
+EMAIL_SUBJECT_PREFIX += START_DATE.strftime("%Y-%m-%d")
+em['From'] = EMAIL_SENDER
+em['Subject'] = EMAIL_SUBJECT_PREFIX
+em.set_content(EMAIL_BODY)
+
+with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+    smtp.login(EMAIL_SENDER, EMAIL_PWD)
+    for user in user_collection.find({'subscribed': True}):
+        EMAIL_RECEIVER = user['email']
+        em['To'] = EMAIL_RECEIVER
+        smtp.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, em.as_string())
