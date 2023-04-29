@@ -1,0 +1,30 @@
+name: Run cve etl script
+on:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo content
+        uses: actions/checkout@v2 # checkout the repository content
+
+      - name: setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10' # install the python version needed
+
+      - name: install python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install pymongo requests
+      - name: execute etl script
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          CVE_URI: ${{ secrets.CVE_URI }}
+          START_AT: ${{ secrets.START_AT }}
+          EMAIL_PWD: ${{ secrets.EMAIL_PWD }}
+          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+          
+        run: python etl_scripts/cve_etl.py
